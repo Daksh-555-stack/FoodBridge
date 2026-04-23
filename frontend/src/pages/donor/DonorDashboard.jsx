@@ -24,12 +24,36 @@ function SkeletonCard() {
   )
 }
 
+function extractErrorMessage(err, fallback) {
+  const data = err.response?.data
+
+  if (!data) return 'Cannot connect to server. Is the backend running?'
+  if (typeof data === 'string') return data
+  if (typeof data.detail === 'string') return data.detail
+  if (Array.isArray(data.detail)) {
+    return data.detail
+      .map((e) => {
+        if (typeof e === 'string') return e
+        if (typeof e === 'object' && e?.msg) {
+          const field = e.loc ? e.loc[e.loc.length - 1] : ''
+          return field ? `${field}: ${e.msg}` : e.msg
+        }
+        return JSON.stringify(e)
+      })
+      .join('. ')
+  }
+  if (typeof data.message === 'string') return data.message
+  if (typeof data.error === 'string') return data.error
+
+  return fallback || JSON.stringify(data)
+}
+
 export default function DonorDashboard() {
   const { state } = useApp()
   const [listings, setListings] = useState([])
   const [restaurant, setRestaurant] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState('')
 
   const fetchDashboard = async () => {
     try {
@@ -40,9 +64,9 @@ export default function DonorDashboard() {
       ])
       setListings(listingsRes.data)
       setRestaurant(restaurantsRes.data?.[0] || null)
-      setError(null)
+      setError('')
     } catch (err) {
-      setError(err.response?.data?.detail?.message || 'Failed to load listings')
+      setError(extractErrorMessage(err, 'Failed to load listings'))
     } finally {
       setLoading(false)
     }
@@ -57,7 +81,7 @@ export default function DonorDashboard() {
       setListings(prev => prev.filter(l => l.id !== id))
       toast.success('Listing deleted')
     } catch (err) {
-      toast.error(err.response?.data?.detail?.message || 'Failed to delete')
+      toast.error(extractErrorMessage(err, 'Failed to delete'))
     }
   }
 

@@ -14,6 +14,30 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
 
+function extractErrorMessage(err, fallback) {
+  const data = err.response?.data
+
+  if (!data) return 'Cannot connect to server. Is the backend running?'
+  if (typeof data === 'string') return data
+  if (typeof data.detail === 'string') return data.detail
+  if (Array.isArray(data.detail)) {
+    return data.detail
+      .map((e) => {
+        if (typeof e === 'string') return e
+        if (typeof e === 'object' && e?.msg) {
+          const field = e.loc ? e.loc[e.loc.length - 1] : ''
+          return field ? `${field}: ${e.msg}` : e.msg
+        }
+        return JSON.stringify(e)
+      })
+      .join('. ')
+  }
+  if (typeof data.message === 'string') return data.message
+  if (typeof data.error === 'string') return data.error
+
+  return fallback || JSON.stringify(data)
+}
+
 function LocationPicker({ position, setPosition, setAddress }) {
   useMapEvents({
     click(e) {
@@ -134,17 +158,9 @@ export default function ListFoodPage() {
       console.error('Error status:', error.response?.status)
       console.error('Error detail:', error.response?.data)
 
-      const detail = error.response?.data?.detail
       const message = error.code === 'ERR_NETWORK'
         ? 'Cannot connect to server. Make sure the backend is running on port 8000. Check your terminal.'
-        : (
-            (typeof detail === 'string' ? detail : null) ||
-            (detail?.message || null) ||
-            (Array.isArray(detail) ? detail.map(item => item.msg || item.message || JSON.stringify(item)).join(', ') : null) ||
-            error.response?.data?.message ||
-            error.message ||
-            'Failed to create listing'
-          )
+        : extractErrorMessage(error, error.message || 'Failed to create listing')
       setFormError(message)
       toast.error(message)
     } finally {

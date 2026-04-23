@@ -85,7 +85,7 @@ function AppContent() {
       {state.user && !hideGlobalNav && <Navbar />}
       <main className={state.user && !hideGlobalNav ? 'pt-16' : ''}>
         <Routes>
-          {/* Landing page — unauthenticated home */}
+          {/* Landing page — unauthenticated home at / */}
           <Route path="/" element={
             state.user ? <Navigate to={authenticatedHome(state.user)} replace /> : <LandingPage />
           } />
