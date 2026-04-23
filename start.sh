@@ -5,7 +5,7 @@
 
 set -e
 
-PROJECT_DIR="/Users/dakshtulaskar/Desktop/FoodBridge AI"
+PROJECT_DIR="$(pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend"
 AI_ENGINE_DIR="$PROJECT_DIR/ai_engine"
 FRONTEND_DIR="$PROJECT_DIR/frontend"

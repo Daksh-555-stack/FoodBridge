@@ -1,0 +1,9 @@
+{
+  "name": "foodbridge",
+  "version": "1.0.0",
+  "description": "FoodBridge AI Project",
+  "scripts": {
+    "dev": "bash start.sh",
+    "stop": "bash stop.sh"
+  }
+}

@@ -4,74 +4,65 @@ import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models.donation import Donation, DonationStatus
+from app.models.food_listing import FoodListing, ListingStatus
 from app.redis_client import redis_client
-import httpx
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 async def background_expiry_checker():
-    """Background task that runs every 5 minutes to check for expiring donations."""
+    """Background task that runs every 5 minutes to check for expiring food listings."""
     while True:
         try:
             db = SessionLocal()
             now = datetime.utcnow()
             expiry_threshold = now + timedelta(minutes=60)
 
-            # Find pending donations expiring within 60 minutes
+            # Find available listings expiring within 60 minutes
             expiring = (
-                db.query(Donation)
+                db.query(FoodListing)
                 .filter(
-                    Donation.status == DonationStatus.pending,
-                    Donation.expiry_datetime <= expiry_threshold,
-                    Donation.expiry_datetime > now,
+                    FoodListing.status == ListingStatus.available,
+                    FoodListing.expiry_time <= expiry_threshold,
+                    FoodListing.expiry_time > now,
                 )
                 .all()
             )
 
-            for donation in expiring:
-                remaining = (donation.expiry_datetime - now).total_seconds() / 60
+            for listing in expiring:
+                remaining = (listing.expiry_time - now).total_seconds() / 60
                 logger.warning(
-                    f"Donation {donation.id} expiring in {remaining:.0f} min"
+                    f"Listing {listing.id} ({listing.food_name}) expiring in {remaining:.0f} min"
                 )
 
                 # Publish expiry alert
-                redis_client.publish("expiry_alert", json.dumps({
-                    "event": "expiry_alert",
-                    "timestamp": now.isoformat() + "Z",
-                    "payload": {
-                        "donation_id": donation.id,
-                        "food_type": donation.food_type,
-                        "quantity_kg": donation.quantity_kg,
-                        "remaining_minutes": round(remaining),
-                        "expiry_datetime": donation.expiry_datetime.isoformat(),
-                    },
-                }))
-
-                # Try re-matching
                 try:
-                    async with httpx.AsyncClient(timeout=30.0) as client:
-                        await client.post(
-                            f"{settings.AI_ENGINE_URL}/match",
-                            json={"donation_id": donation.id},
-                        )
+                    redis_client.publish("foodbridge_events", json.dumps({
+                        "event": "expiry_alert",
+                        "timestamp": now.isoformat() + "Z",
+                        "data": {
+                            "listing_id": str(listing.id),
+                            "food_name": listing.food_name,
+                            "quantity_kg": listing.quantity_kg,
+                            "remaining_minutes": round(remaining),
+                            "expiry_time": listing.expiry_time.isoformat(),
+                        },
+                    }))
                 except Exception as e:
-                    logger.error(f"Re-match failed for donation {donation.id}: {e}")
+                    logger.error(f"Failed to publish expiry alert: {e}")
 
-            # Mark expired donations
+            # Mark expired listings
             expired = (
-                db.query(Donation)
+                db.query(FoodListing)
                 .filter(
-                    Donation.status == DonationStatus.pending,
-                    Donation.expiry_datetime <= now,
+                    FoodListing.status == ListingStatus.available,
+                    FoodListing.expiry_time <= now,
                 )
                 .all()
             )
-            for donation in expired:
-                donation.status = DonationStatus.expired
-                logger.info(f"Donation {donation.id} marked as expired")
+            for listing in expired:
+                listing.status = ListingStatus.expired
+                logger.info(f"Listing {listing.id} ({listing.food_name}) marked as expired")
 
             db.commit()
             db.close()

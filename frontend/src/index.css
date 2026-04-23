@@ -2,38 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg-main: #1c1c1c;
+  --bg-card: #242424;
+  --bg-elevated: #2c2c2c;
+  --border: #333333;
+  --text-primary: #ffffff;
+  --text-muted: #888888;
+  --text-hint: #555555;
+  --accent-green: #10b981;
+  --accent-gold: #c8a96e;
+  --accent-red: #e74c3c;
+}
+
 @layer base {
   body {
     @apply font-sans antialiased;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
   }
   ::-webkit-scrollbar {
     @apply w-2;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-gray-900;
+    background: var(--bg-main);
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-700 rounded-full hover:bg-gray-600;
+    background: #444;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-gray-900/60 backdrop-blur-xl border border-gray-800/50 rounded-2xl shadow-2xl;
+    background: var(--bg-card);
+    backdrop-filter: blur(24px);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
   .btn-primary {
-    @apply px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold rounded-xl
-    hover:from-emerald-400 hover:to-teal-500 transition-all duration-300 shadow-lg shadow-emerald-500/25
+    @apply px-6 py-2.5 text-white font-semibold rounded-xl
+    transition-all duration-300 shadow-lg
     active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+    background: var(--accent-green);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.1);
   }
   .btn-secondary {
-    @apply px-6 py-2.5 bg-gray-800 text-gray-200 font-medium rounded-xl border border-gray-700
-    hover:bg-gray-700 hover:border-gray-600 transition-all duration-300 active:scale-95;
+    @apply px-6 py-2.5 font-medium rounded-xl transition-all duration-300 active:scale-95;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover {
+    background: #363636;
+    border-color: #444;
   }
   .input-field {
-    @apply w-full px-4 py-3 bg-gray-800/80 border border-gray-700 rounded-xl text-gray-100
-    placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500
-    transition-all duration-300;
+    @apply w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-300;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+  .input-field::placeholder {
+    color: var(--text-hint);
+  }
+  .input-field:focus {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
   }
   .status-badge {
     @apply px-3 py-1 text-xs font-semibold rounded-full uppercase tracking-wider;

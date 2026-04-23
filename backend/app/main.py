@@ -5,8 +5,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routes import (
-    auth_router, donations_router, drivers_router,
-    shelters_router, matches_router, routes_router, admin_router,
+    auth_router, restaurants_router, listings_router,
+    claims_router, deliveries_router, shelters_router, admin_router,
+    drivers_router,
 )
 from app.websocket import websocket_endpoint, manager
 from app.redis_client import redis_client
@@ -37,14 +38,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="FoodBridge AI",
     description="Real-time food rescue logistics platform powered by AI matching",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:3000", "http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,12 +58,13 @@ app.add_middleware(
 
 # REST API routes
 app.include_router(auth_router)
-app.include_router(donations_router)
-app.include_router(drivers_router)
+app.include_router(restaurants_router)
+app.include_router(listings_router)
+app.include_router(claims_router)
+app.include_router(deliveries_router)
 app.include_router(shelters_router)
-app.include_router(matches_router)
-app.include_router(routes_router)
 app.include_router(admin_router)
+app.include_router(drivers_router)
 
 # WebSocket endpoint
 app.websocket("/ws/{user_id}")(websocket_endpoint)
@@ -67,7 +74,7 @@ app.websocket("/ws/{user_id}")(websocket_endpoint)
 async def root():
     return {
         "name": "FoodBridge AI",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
         "docs": "/docs",
     }

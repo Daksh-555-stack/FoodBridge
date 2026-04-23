@@ -6,12 +6,7 @@ const initialState = {
   user: JSON.parse(localStorage.getItem('fb_user') || 'null'),
   accessToken: localStorage.getItem('fb_access_token') || null,
   refreshToken: localStorage.getItem('fb_refresh_token') || null,
-  donations: [],
-  matches: [],
-  drivers: [],
-  shelters: [],
   driverLocations: {},
-  routes: {},
   notifications: [],
   unreadCount: 0,
   darkMode: true,
@@ -36,46 +31,6 @@ function appReducer(state, action) {
       localStorage.removeItem('fb_refresh_token')
       return { ...initialState, user: null, accessToken: null, refreshToken: null }
 
-    case 'REFRESH_TOKEN':
-      localStorage.setItem('fb_access_token', action.payload.accessToken)
-      localStorage.setItem('fb_refresh_token', action.payload.refreshToken)
-      return {
-        ...state,
-        accessToken: action.payload.accessToken,
-        refreshToken: action.payload.refreshToken,
-      }
-
-    case 'SET_DONATIONS':
-      return { ...state, donations: action.payload }
-
-    case 'ADD_DONATION':
-      return { ...state, donations: [action.payload, ...state.donations] }
-
-    case 'UPDATE_DONATION':
-      return {
-        ...state,
-        donations: state.donations.map(d =>
-          d.id === action.payload.id ? { ...d, ...action.payload } : d
-        ),
-      }
-
-    case 'SET_MATCHES':
-      return { ...state, matches: action.payload }
-
-    case 'ADD_MATCH':
-      return {
-        ...state,
-        matches: [action.payload, ...state.matches],
-        notifications: [
-          { id: Date.now(), type: 'new_match', data: action.payload, read: false },
-          ...state.notifications,
-        ],
-        unreadCount: state.unreadCount + 1,
-      }
-
-    case 'SET_DRIVERS':
-      return { ...state, drivers: action.payload }
-
     case 'UPDATE_DRIVER_LOCATION':
       return {
         ...state,
@@ -89,35 +44,13 @@ function appReducer(state, action) {
         },
       }
 
-    case 'SET_SHELTERS':
-      return { ...state, shelters: action.payload }
-
-    case 'UPDATE_ROUTE':
-      return {
-        ...state,
-        routes: { ...state.routes, [action.payload.driver_id]: action.payload },
-      }
-
-    case 'DELIVERY_DONE':
-      return {
-        ...state,
-        donations: state.donations.map(d =>
-          d.id === action.payload.donation_id ? { ...d, status: 'delivered' } : d
-        ),
-        notifications: [
-          { id: Date.now(), type: 'delivery_done', data: action.payload, read: false },
-          ...state.notifications,
-        ],
-        unreadCount: state.unreadCount + 1,
-      }
-
-    case 'EXPIRY_ALERT':
+    case 'ADD_NOTIFICATION':
       return {
         ...state,
         notifications: [
-          { id: Date.now(), type: 'expiry_alert', data: action.payload, read: false },
+          { id: Date.now(), ...action.payload, read: false, timestamp: new Date().toISOString() },
           ...state.notifications,
-        ],
+        ].slice(0, 50),
         unreadCount: state.unreadCount + 1,
       }
 
@@ -127,9 +60,6 @@ function appReducer(state, action) {
         notifications: state.notifications.map(n => ({ ...n, read: true })),
         unreadCount: 0,
       }
-
-    case 'TOGGLE_DARK_MODE':
-      return { ...state, darkMode: !state.darkMode }
 
     default:
       return state

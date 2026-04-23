@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    OSRM_URL: str = ""
+    OSRM_URL: str = "http://router.project-osrm.org"
     FRONTEND_URL: str = "http://localhost:3000"
     AI_ENGINE_URL: str = "http://localhost:8001"
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
 
     class Config:
         env_file = str(env_path)

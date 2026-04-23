@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import toast from 'react-hot-toast'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
-const MAX_RETRIES = 5
+const MAX_RETRIES = 10
 
 export function useWebSocket() {
   const { state, dispatch } = useApp()
@@ -11,8 +11,52 @@ export function useWebSocket() {
   const retriesRef = useRef(0)
   const reconnectTimerRef = useRef(null)
 
+  const handleMessage = useCallback((message) => {
+    const { event, data } = message
+
+    switch (event) {
+      case 'new_listing':
+        dispatch({ type: 'ADD_NOTIFICATION', payload: { type: 'new_listing', data } })
+        toast.success(`🍲 New food available: ${data?.food_name || 'Food listed'}`, { duration: 5000 })
+        break
+
+      case 'new_claim':
+        dispatch({ type: 'ADD_NOTIFICATION', payload: { type: 'new_claim', data } })
+        toast('📦 New delivery job available!', { icon: '🚗', duration: 5000 })
+        break
+
+      case 'delivery_assigned':
+        dispatch({ type: 'ADD_NOTIFICATION', payload: { type: 'delivery_assigned', data } })
+        toast.success('🚗 A driver is on the way!', { duration: 5000 })
+        break
+
+      case 'food_picked_up':
+        dispatch({ type: 'ADD_NOTIFICATION', payload: { type: 'food_picked_up', data } })
+        toast.success('📦 Driver picked up your food!', { duration: 5000 })
+        break
+
+      case 'food_delivered':
+        dispatch({ type: 'ADD_NOTIFICATION', payload: { type: 'food_delivered', data } })
+        toast.success('🎉 Food delivered successfully!', { duration: 6000 })
+        break
+
+      case 'driver_location':
+        dispatch({ type: 'UPDATE_DRIVER_LOCATION', payload: data })
+        break
+
+      case 'expiry_alert':
+        dispatch({ type: 'ADD_NOTIFICATION', payload: { type: 'expiry_alert', data } })
+        toast.error(`⏰ ${data?.food_name || 'Food'} expiring in ${data?.remaining_minutes || '?'} min!`, { duration: 6000 })
+        break
+
+      default:
+        console.log('Unknown WS event:', event)
+    }
+  }, [dispatch])
+
   const connect = useCallback(() => {
     if (!state.user || !state.accessToken) return
+    if (wsRef.current?.readyState === WebSocket.OPEN) return
 
     const url = `${WS_URL}/ws/${state.user.id}?token=${state.accessToken}`
 
@@ -26,17 +70,11 @@ export function useWebSocket() {
       }
 
       ws.onmessage = (event) => {
-        if (event.data === 'ping') {
-          ws.send('pong')
-          return
-        }
-
+        if (event.data === 'ping') { ws.send('pong'); return }
         try {
           const message = JSON.parse(event.data)
           handleMessage(message)
-        } catch (e) {
-          // Not JSON, might be pong
-        }
+        } catch { /* not JSON */ }
       }
 
       ws.onclose = () => {
@@ -44,66 +82,18 @@ export function useWebSocket() {
         attemptReconnect()
       }
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error)
-      }
-    } catch (e) {
-      console.error('WebSocket connection failed:', e)
+      ws.onerror = () => {}
+    } catch {
       attemptReconnect()
     }
-  }, [state.user, state.accessToken])
+  }, [state.user, state.accessToken, handleMessage])
 
   const attemptReconnect = useCallback(() => {
-    if (retriesRef.current >= MAX_RETRIES) {
-      console.log('Max WebSocket retries reached')
-      return
-    }
+    if (retriesRef.current >= MAX_RETRIES) return
     const delay = Math.min(1000 * Math.pow(2, retriesRef.current), 30000)
     retriesRef.current += 1
-    console.log(`Reconnecting in ${delay}ms (attempt ${retriesRef.current})`)
     reconnectTimerRef.current = setTimeout(connect, delay)
   }, [connect])
-
-  const handleMessage = useCallback((message) => {
-    const { event, payload } = message
-
-    switch (event) {
-      case 'new_match':
-        dispatch({ type: 'ADD_MATCH', payload })
-        toast.success(`🎯 New match! Confidence: ${(payload.confidence_score * 100).toFixed(0)}%`, {
-          duration: 5000,
-          icon: '🍲',
-        })
-        break
-
-      case 'driver_location':
-        dispatch({ type: 'UPDATE_DRIVER_LOCATION', payload })
-        break
-
-      case 'route_updated':
-        dispatch({ type: 'UPDATE_ROUTE', payload })
-        break
-
-      case 'delivery_done':
-        dispatch({ type: 'DELIVERY_DONE', payload })
-        toast.success(`✅ Delivery completed! ${payload.quantity_kg}kg rescued`, {
-          duration: 5000,
-          icon: '🎉',
-        })
-        break
-
-      case 'expiry_alert':
-        dispatch({ type: 'EXPIRY_ALERT', payload })
-        toast.error(`⚠️ ${payload.food_type} expiring in ${payload.remaining_minutes} min!`, {
-          duration: 6000,
-          icon: '⏰',
-        })
-        break
-
-      default:
-        console.log('Unknown WS event:', event)
-    }
-  }, [dispatch])
 
   useEffect(() => {
     connect()
@@ -113,11 +103,5 @@ export function useWebSocket() {
     }
   }, [connect])
 
-  const sendMessage = useCallback((msg) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(typeof msg === 'string' ? msg : JSON.stringify(msg))
-    }
-  }, [])
-
-  return { sendMessage, isConnected: wsRef.current?.readyState === WebSocket.OPEN }
+  return { isConnected: wsRef.current?.readyState === WebSocket.OPEN }
 }

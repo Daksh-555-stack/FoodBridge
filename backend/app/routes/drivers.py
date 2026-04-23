@@ -1,70 +1,83 @@
-import json
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_role
 from app.models.user import User
 from app.models.driver import Driver
-from app.schemas import DriverOut, LocationUpdate, AvailabilityUpdate
-from app.redis_client import redis_client
+from app.schemas import DriverCreate, DriverOut, DriverAvailabilityUpdate
 
-router = APIRouter(prefix="/drivers", tags=["Drivers"])
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/drivers", tags=["Drivers"])
 
 
-@router.get("/available", response_model=list[DriverOut])
-async def get_available_drivers(
-    current_user: User = Depends(get_current_user),
+@router.post("/register", response_model=DriverOut)
+async def register_driver(
+    req: DriverCreate,
+    current_user: User = Depends(require_role(["driver", "admin"])),
     db: Session = Depends(get_db),
 ):
-    drivers = db.query(Driver).filter(Driver.is_available == True).all()
-    return drivers
-
-
-@router.patch("/me/location", response_model=DriverOut)
-async def update_location(
-    req: LocationUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    driver = db.query(Driver).filter(Driver.id == current_user.id).first()
-    if not driver:
+    """Register a driver profile."""
+    existing = db.query(Driver).filter(Driver.user_id == current_user.id).first()
+    if existing:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "Driver profile not found", "code": "NOT_FOUND", "detail": {}},
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": True, "message": "Driver profile already exists", "code": "ALREADY_EXISTS"},
         )
-    driver.current_lat = req.lat
-    driver.current_lng = req.lng
-    driver.last_seen_at = datetime.utcnow()
+
+    driver = Driver(
+        user_id=current_user.id,
+        vehicle_type=req.vehicle_type,
+        vehicle_number=req.vehicle_number,
+        capacity_kg=req.capacity_kg,
+        is_available=False,
+    )
+    db.add(driver)
     db.commit()
     db.refresh(driver)
 
-    # Publish location update via Redis
-    redis_client.publish("driver_location", json.dumps({
-        "event": "driver_location",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "payload": {
-            "driver_id": driver.id,
-            "lat": req.lat,
-            "lng": req.lng,
-            "name": current_user.name,
-        },
-    }))
-
+    driver = (
+        db.query(Driver)
+        .options(joinedload(Driver.user))
+        .filter(Driver.id == driver.id)
+        .first()
+    )
     return driver
 
 
-@router.patch("/me/availability", response_model=DriverOut)
-async def update_availability(
-    req: AvailabilityUpdate,
-    current_user: User = Depends(get_current_user),
+@router.get("/me", response_model=DriverOut)
+async def get_my_driver_profile(
+    current_user: User = Depends(require_role(["driver", "admin"])),
     db: Session = Depends(get_db),
 ):
-    driver = db.query(Driver).filter(Driver.id == current_user.id).first()
+    """Get current driver's profile."""
+    driver = (
+        db.query(Driver)
+        .options(joinedload(Driver.user))
+        .filter(Driver.user_id == current_user.id)
+        .first()
+    )
     if not driver:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "Driver profile not found", "code": "NOT_FOUND", "detail": {}},
+            detail={"error": True, "message": "Driver profile not found. Please register first.", "code": "NOT_FOUND"},
+        )
+    return driver
+
+
+@router.patch("/availability", response_model=DriverOut)
+async def update_availability(
+    req: DriverAvailabilityUpdate,
+    current_user: User = Depends(require_role(["driver", "admin"])),
+    db: Session = Depends(get_db),
+):
+    """Toggle driver availability on/off."""
+    driver = db.query(Driver).filter(Driver.user_id == current_user.id).first()
+    if not driver:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": True, "message": "Driver profile not found", "code": "NOT_FOUND"},
         )
     driver.is_available = req.is_available
     db.commit()
